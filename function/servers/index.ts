@@ -30,13 +30,36 @@ const httpTrigger: AzureFunction = async function (context: Context, req: HttpRe
         };
     } else {
       const body = req.body;
-      await tableClient.createEntity({ partitionKey: "fixed", rowKey: body.serverName, size: body.size , whitelist: body.whitelist, ops: body.ops, motd: body.motd, maxPlayers: body.maxPlayers});
-      const retVal = await createServer(body.serverName, body.size, body.whitelist, body.ops, body.motd, body.maxPlayers);
-      body.status = "Creating";
-      context.res = {
-        status: retVal,
-        body: body
-      };
+      if (context.bindingData.serverName && context.bindingData.command) {
+        switch(context.bindingData.command) {
+          case "start":
+            context.res = {
+              status: await start(context.bindingData.serverName),
+              body: '"Starting"'
+            };
+            break;
+          case "stop":
+            context.res = {
+              status: await stop(context.bindingData.serverName),
+              body: '"Stoping"'
+            };
+            break;
+          default:
+            context.res = {
+              status: 500,
+              body: '"Wrong command"'
+            };
+        }
+        return;
+      } else {
+        await tableClient.createEntity({ partitionKey: "fixed", rowKey: body.serverName, size: body.size , whitelist: body.whitelist, ops: body.ops, motd: body.motd, maxPlayers: body.maxPlayers});
+        const retVal = await createServer(body.serverName, body.size, body.whitelist, body.ops, body.motd, body.maxPlayers);
+        body.status = "Creating";
+        context.res = {
+          status: retVal,
+          body: body
+        };
+      }
     }
 
 };
