@@ -2,6 +2,7 @@ import { AzureFunction, Context, HttpRequest } from "@azure/functions"
 import { TableClient } from "@azure/data-tables"
 import { DefaultAzureCredential } from "@azure/identity"
 import { ResourceManagementClient } from "@azure/arm-resources";
+import { ContainerInstanceManagementClient } from "@azure/arm-containerinstance";
 
 const account = process.env["TABLE_ACCOUNT"];
 const subscriptionId = process.env["SUBSCRIPTION_ID"];
@@ -98,9 +99,36 @@ async function createServer(serverName:string, size:string, whitelist: string, o
 }
 
 async function getServerInfo(serverInfo) {
-    return {
-        serverName: serverInfo.rowKey, size: serverInfo.size, maxPlayers: serverInfo.maxPlayers
-    }
+  const credential = new DefaultAzureCredential();
+  const aciClient = new ContainerInstanceManagementClient(credential, subscriptionId);
+  try {
+    const group = await aciClient.containerGroups.get(resourceGroupName, serverInfo.rowKey);
+    return { 
+      serverName: serverInfo.rowKey, size: serverInfo.size, maxPlayers: serverInfo.maxPlayers,  whitelist: serverInfo.whitelist, ops: serverInfo.ops, motd: serverInfo.motd,
+      status: group.instanceView.state,
+      dns: group.ipAddress.fqdn
+    };
+  } catch(error) {
+    return { 
+      serverName: serverInfo.rowKey, size: serverInfo.size, maxPlayers: serverInfo.maxPlayers,  whitelist: serverInfo.whitelist, ops: serverInfo.ops, motd: serverInfo.motd,
+      status: "Not found"
+    };
+  }
 }
+
+async function stop(serverName: string) {
+  const credential = new DefaultAzureCredential();
+  const aciClient = new ContainerInstanceManagementClient(credential, subscriptionId);
+  const response = await aciClient.containerGroups.stop(resourceGroupName, serverName);
+  return response._response.status;
+}
+
+async function start(serverName: string) {
+  const credential = new DefaultAzureCredential();
+  const aciClient = new ContainerInstanceManagementClient(credential, subscriptionId);
+  const response = await aciClient.containerGroups.start(resourceGroupName, serverName);
+  return response._response.status;
+}
+
 
 export default httpTrigger;
